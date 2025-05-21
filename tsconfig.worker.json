@@ -16,6 +16,7 @@
   },
   "include": [
     "./src/worker/*.ts",
+    "./worker/**/*.ts",
     "./src/lib/*.ts"
   ],
   "exclude": ["node_modules", ".next"]

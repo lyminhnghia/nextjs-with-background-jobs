@@ -1,11 +1,10 @@
 import { getLogger } from '@/lib/logger';
-import { Job } from './schedule';
-
-export interface HealthCheckResult {
-  status: 'healthy' | 'unhealthy';
-  message?: string;
-  details?: Record<string, unknown>;
-}
+import { Job } from '../interfaces/schedule';
+import {
+  HealthCheckComponent,
+  HealthCheckResult,
+  IHealthCheckService
+} from '../interfaces/health';
 
 interface JobStatus {
   name: string;
@@ -13,23 +12,22 @@ interface JobStatus {
   nextRun: Date | null;
 }
 
-export interface HealthCheckComponent {
-  name: string;
-  check: () => Promise<HealthCheckResult>;
-}
-
-export class HealthCheckService {
+export class HealthCheckServiceImpl implements IHealthCheckService {
   private components: Map<string, HealthCheckComponent> = new Map();
   private logger = getLogger('healthCheck');
 
-  constructor(activeJobs: Map<string, Job>) {
+  constructor(private activeJobs: Map<string, Job>) {
+    this.registerDefaultComponents();
+  }
+
+  private registerDefaultComponents() {
     this.registerComponent({
       name: 'scheduler',
-      check: () => this.checkScheduler(activeJobs)
+      check: () => this.checkScheduler(this.activeJobs)
     });
   }
 
-  registerComponent(component: HealthCheckComponent) {
+  registerComponent(component: HealthCheckComponent): void {
     this.components.set(component.name, component);
   }
 
@@ -46,7 +44,9 @@ export class HealthCheckService {
         };
       }
     );
+
     const hasInactiveJobs = jobStatuses.some((job) => !job.isActive);
+
     return {
       status: hasInactiveJobs ? 'unhealthy' : 'healthy',
       message: hasInactiveJobs
@@ -63,6 +63,7 @@ export class HealthCheckService {
     const componentsToCheck = components
       ? components.filter((name) => this.components.has(name))
       : Array.from(this.components.keys());
+
     for (const name of componentsToCheck) {
       const component = this.components.get(name);
       if (component) {
@@ -80,6 +81,7 @@ export class HealthCheckService {
         }
       }
     }
+
     return results;
   }
 }
