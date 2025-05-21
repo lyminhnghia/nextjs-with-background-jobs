@@ -8,7 +8,15 @@
     "isolatedModules": false,
     "jsx": "react",
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "rootDir": "."
   },
-  "include": ["./src/worker/*.ts", "./src/lib/*.ts"],
+  "include": [
+    "./src/worker/*.ts",
+    "./src/lib/*.ts"
+  ],
   "exclude": ["node_modules", ".next"]
 }

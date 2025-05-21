@@ -1,4 +1,4 @@
-import { getLogger } from "../lib/logger"
+import { getLogger } from "@/lib/logger"
 
 const logger = getLogger('logic');
 

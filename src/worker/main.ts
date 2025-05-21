@@ -1,6 +1,6 @@
 import schedule from 'node-schedule';
 import dotenv from 'dotenv';
-import { getLogger } from '../lib/logger';
+import { getLogger } from '@/lib/logger';
 import { demoLogic } from './logic';
 
 dotenv.config();
