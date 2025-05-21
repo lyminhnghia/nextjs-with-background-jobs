@@ -69,10 +69,10 @@ async function startServer() {
 
     const shutdown = async (signal: string) => {
       logger.info(`Received ${signal}. Starting graceful shutdown...`);
+      await scheduleService.handleShutdown(signal);
       server.close(() => {
         logger.info('HTTP server closed');
       });
-      await scheduleService.handleShutdown(signal);
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
