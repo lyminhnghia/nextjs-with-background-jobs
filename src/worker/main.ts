@@ -1,66 +1,85 @@
-import schedule from 'node-schedule';
+import { createServer } from 'http';
 import dotenv from 'dotenv';
 import { getLogger } from '@/lib/logger';
-import { demoLogic } from './logic';
+import { ScheduleService } from './schedule';
+import { HealthCheckService } from './health';
 
 dotenv.config();
 const logger = getLogger('mainWorker');
 
-interface Job {
-  name: string;
-  schedule: string;
-  handler: () => Promise<void> | void;
-  task?: schedule.Job;
-}
+async function startServer() {
+  try {
+    const PORT = process.env.PORT || 8000;
+    const scheduleService = new ScheduleService();
+    await scheduleService.startWorker();
+    const healthCheckService = new HealthCheckService(
+      scheduleService.getActiveJobs()
+    );
 
-const jobs: Job[] = [
-  {
-    name: 'demoLogic',
-    schedule: '*/10 * * * * *', // Default to every 10 seconds
-    handler: demoLogic
-  }
-];
+    const server = createServer(async (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-const activeJobs = new Map<string, Job>();
-
-function initializeJobs() {
-  jobs.forEach((job) => {
-    logger.info(`Initializing job: ${job.name} with schedule: ${job.schedule}`);
-    const task = schedule.scheduleJob(job.schedule, async () => {
-      try {
-        logger.info(`Starting job: ${job.name}`);
-        await job.handler();
-        logger.info(`Completed job: ${job.name}`);
-      } catch (error) {
-        logger.error(`Error in job ${job.name}:`, error);
+      if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
       }
+
+      if (req.method === 'GET' && req.url?.startsWith('/health')) {
+        try {
+          const components = req.url.split('?')[1]?.split('=')[1]?.split(',');
+          const healthStatus = await healthCheckService.checkHealth(components);
+
+          const isHealthy = Object.values(healthStatus).every(
+            (result: { status: string }) => result.status === 'healthy'
+          );
+          res.statusCode = isHealthy ? 200 : 503;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              status: isHealthy ? 'healthy' : 'unhealthy',
+              timestamp: new Date().toISOString(),
+              components: healthStatus
+            })
+          );
+        } catch (error) {
+          logger.error('Health check failed:', error);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              status: 'error',
+              message: 'Internal server error during health check'
+            })
+          );
+        }
+        return;
+      }
+
+      res.statusCode = 404;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Not found' }));
     });
-    job.task = task;
-    activeJobs.set(job.name, job);
-  });
-}
 
-async function handleShutdown(signal: string) {
-  logger.info(`Received ${signal}. Starting graceful shutdown...`);
-  try {
-    await schedule.gracefulShutdown();
-    logger.info('Schedule graceful shutdown successfully');
-  } catch (error) {
-    logger.error('Error during shutdown:', error);
-  }
-  process.exit(0);
-}
+    server.listen(PORT, () => {
+      logger.info(`Server is running on port ${PORT}`);
+    });
 
-async function startWorker() {
-  try {
-    initializeJobs();
-    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-    process.on('SIGINT', () => handleShutdown('SIGINT'));
-    logger.info('Worker started successfully');
+    const shutdown = async (signal: string) => {
+      logger.info(`Received ${signal}. Starting graceful shutdown...`);
+      server.close(() => {
+        logger.info('HTTP server closed');
+      });
+      await scheduleService.handleShutdown(signal);
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
-    logger.error('Error starting worker:', error);
+    logger.error('Error starting server:', error);
     process.exit(1);
   }
 }
 
-startWorker();
+startServer();
