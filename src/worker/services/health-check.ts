@@ -1,12 +1,11 @@
 import { getLogger } from '@/lib/logger';
-import { Job } from '../interfaces/schedule';
 import {
   HealthCheckComponent,
   HealthCheckResult,
   IHealthCheckService
 } from '../interfaces/health';
 
-interface JobStatus {
+export interface JobStatus {
   name: string;
   isActive: boolean;
   nextRun: Date | null;
@@ -16,44 +15,10 @@ export class HealthCheckServiceImpl implements IHealthCheckService {
   private components: Map<string, HealthCheckComponent> = new Map();
   private logger = getLogger('healthCheck');
 
-  constructor(private activeJobs: Map<string, Job>) {
-    this.registerDefaultComponents();
-  }
-
-  private registerDefaultComponents() {
-    this.registerComponent({
-      name: 'scheduler',
-      check: () => this.checkScheduler(this.activeJobs)
-    });
-  }
+  constructor() {}
 
   registerComponent(component: HealthCheckComponent): void {
     this.components.set(component.name, component);
-  }
-
-  private async checkScheduler(
-    activeJobs: Map<string, Job>
-  ): Promise<HealthCheckResult> {
-    const jobStatuses: JobStatus[] = Array.from(activeJobs.entries()).map(
-      ([name, job]) => {
-        const task = job.task;
-        return {
-          name,
-          isActive: !!task,
-          nextRun: task?.nextInvocation ? new Date(task.nextInvocation()) : null
-        };
-      }
-    );
-
-    const hasInactiveJobs = jobStatuses.some((job) => !job.isActive);
-
-    return {
-      status: hasInactiveJobs ? 'unhealthy' : 'healthy',
-      message: hasInactiveJobs
-        ? 'Some scheduled jobs are not active'
-        : 'All scheduled jobs are healthy',
-      details: { jobs: jobStatuses }
-    };
   }
 
   async checkHealth(
@@ -81,7 +46,6 @@ export class HealthCheckServiceImpl implements IHealthCheckService {
         }
       }
     }
-
     return results;
   }
 }

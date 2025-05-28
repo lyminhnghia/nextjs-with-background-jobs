@@ -1,4 +1,5 @@
 import { Job as ScheduleJob } from 'node-schedule';
+import { HealthCheckResult } from './health';
 
 export interface Job {
   name: string;
@@ -10,5 +11,5 @@ export interface Job {
 export interface IScheduleService {
   startWorker(): Promise<void>;
   handleShutdown(signal: string): Promise<void>;
-  getActiveJobs(): Map<string, Job>;
+  checkScheduler(): Promise<HealthCheckResult>;
 }

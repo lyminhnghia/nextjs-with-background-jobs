@@ -15,3 +15,9 @@ export interface IHealthCheckService {
     components?: string[]
   ): Promise<Record<string, HealthCheckResult>>;
 }
+
+export interface JobStatus {
+  name: string;
+  isActive: boolean;
+  nextRun: Date | null;
+}

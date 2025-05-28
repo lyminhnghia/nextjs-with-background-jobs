@@ -1,7 +1,7 @@
 import schedule from 'node-schedule';
 import { getLogger } from '@/lib/logger';
-import { demoLogic } from './demo-logic';
 import { IScheduleService, Job } from '../interfaces/schedule';
+import { HealthCheckResult, JobStatus } from '../interfaces/health';
 
 export class ScheduleServiceImpl implements IScheduleService {
   private activeJobs: Map<string, Job> = new Map();
@@ -9,14 +9,7 @@ export class ScheduleServiceImpl implements IScheduleService {
   private logger = getLogger('schedule');
 
   constructor(jobs?: Job[]) {
-    this.jobs = [
-      ...(jobs || []),
-      {
-        name: 'demoJob',
-        schedule: '*/10 * * * * *', // every 10 seconds
-        handler: demoLogic
-      }
-    ];
+    this.jobs = jobs || [];
   }
 
   async startWorker(): Promise<void> {
@@ -48,8 +41,25 @@ export class ScheduleServiceImpl implements IScheduleService {
     });
   }
 
-  getActiveJobs(): Map<string, Job> {
-    return this.activeJobs;
+  async checkScheduler(): Promise<HealthCheckResult> {
+    const jobStatuses: JobStatus[] = Array.from(this.activeJobs.entries()).map(
+      ([name, job]) => {
+        const task = job.task;
+        return {
+          name,
+          isActive: !!task,
+          nextRun: task?.nextInvocation ? new Date(task.nextInvocation()) : null
+        };
+      }
+    );
+    const hasInactiveJobs = jobStatuses.some((job) => !job.isActive);
+    return {
+      status: hasInactiveJobs ? 'unhealthy' : 'healthy',
+      message: hasInactiveJobs
+        ? 'Some scheduled jobs are not active'
+        : 'All scheduled jobs are healthy',
+      details: { jobs: jobStatuses }
+    };
   }
 
   async handleShutdown(signal: string): Promise<void> {
